@@ -1,0 +1,34 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Validate local AAR dependency
+        run: |
+          test -f app/libs/libzt-release.aar || (echo "Missing app/libs/libzt-release.aar" && exit 1)
+
+      - name: Build arm64-v8a release APK
+        run: ./gradlew :app:assembleRelease
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zerotierproxy-arm64-v8a-apk
+          path: app/build/outputs/apk/release/*.apk
