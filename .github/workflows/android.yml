@@ -24,6 +24,9 @@ jobs:
         run: |
           test -f app/libs/libzt-release.aar || (echo "Missing app/libs/libzt-release.aar" && exit 1)
 
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
       - name: Build arm64-v8a release APK
         run: ./gradlew :app:assembleRelease
 
