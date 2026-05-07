@@ -13,6 +13,14 @@ import androidx.core.app.NotificationCompat
 
 class ZTVpnService : VpnService() {
     private var tunInterface: ParcelFileDescriptor? = null
+    private lateinit var settingsManager: SettingsManager
+    private lateinit var libztBridge: LibztBridge
+
+    override fun onCreate() {
+        super.onCreate()
+        settingsManager = SettingsManager(this)
+        libztBridge = LibztBridge(this)
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -32,6 +40,14 @@ class ZTVpnService : VpnService() {
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
+
+        val config = LibztConfig(
+            planetPath = intent.getStringExtra(EXTRA_PLANET_PATH) ?: settingsManager.planetFile()?.absolutePath,
+            moonPath = intent.getStringExtra(EXTRA_MOON_PATH) ?: settingsManager.moonFile()?.absolutePath,
+            storageDir = java.io.File(filesDir, "libzt-state").apply { mkdirs() },
+            servicePort = 9993
+        )
+        libztBridge.startNode(config).getOrThrow()
 
         val extraRoutes = intent.getStringArrayExtra(EXTRA_ROUTES)?.toList().orEmpty()
         val routes = (DEFAULT_ZT_ROUTES + extraRoutes).distinct()
@@ -56,6 +72,7 @@ class ZTVpnService : VpnService() {
     private fun stopSplitTunnel() {
         tunInterface?.close()
         tunInterface = null
+        libztBridge.stopNode()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -92,6 +109,8 @@ class ZTVpnService : VpnService() {
         const val ACTION_START = "com.zerotier.proxy.START"
         const val ACTION_STOP = "com.zerotier.proxy.STOP"
         const val EXTRA_ROUTES = "extra_routes"
+        const val EXTRA_PLANET_PATH = "planet_path"
+        const val EXTRA_MOON_PATH = "moon_path"
 
         private const val CHANNEL_ID = "zt_proxy_vpn"
         private const val NOTIFICATION_ID = 700

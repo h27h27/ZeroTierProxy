@@ -1,5 +1,6 @@
 package com.zerotier.proxy
 
+import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -34,18 +35,22 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private lateinit var settingsManager: SettingsManager
-    private lateinit var pylonRunner: PylonRunner
+    private lateinit var libztBridge: LibztBridge
+    private lateinit var localProxy: LocalSocks5Proxy
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settingsManager = SettingsManager(this)
-        pylonRunner = PylonRunner(this, settingsManager)
+        libztBridge = LibztBridge(this)
+        localProxy = LocalSocks5Proxy(libztBridge)
 
         setContent {
             MaterialTheme {
                 MainScreen(
+                    context = this,
                     settingsManager = settingsManager,
-                    pylonRunner = pylonRunner,
+                    libztBridge = libztBridge,
+                    localProxy = localProxy,
                     onSplitTunnelStart = { requestVpnPermissionAndStart() },
                     onSplitTunnelStop = { stopSplitTunnel() }
                 )
@@ -71,7 +76,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startSplitTunnel() {
-        val intent = Intent(this, ZTVpnService::class.java).apply { action = ZTVpnService.ACTION_START }
+        val intent = Intent(this, ZTVpnService::class.java).apply {
+            action = ZTVpnService.ACTION_START
+            putExtra(ZTVpnService.EXTRA_PLANET_PATH, settingsManager.planetFile()?.absolutePath)
+            putExtra(ZTVpnService.EXTRA_MOON_PATH, settingsManager.moonFile()?.absolutePath)
+        }
         startService(intent)
     }
 
@@ -88,8 +97,10 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScreen(
+    context: Context,
     settingsManager: SettingsManager,
-    pylonRunner: PylonRunner,
+    libztBridge: LibztBridge,
+    localProxy: LocalSocks5Proxy,
     onSplitTunnelStart: () -> Unit,
     onSplitTunnelStop: () -> Unit
 ) {
@@ -142,10 +153,22 @@ private fun MainScreen(
                     scope.launch {
                         if (!running) {
                             if (proxyMode) {
-                                withContext(Dispatchers.IO) { pylonRunner.start() }
+                                val nodeResult = withContext(Dispatchers.IO) {
+                                    libztBridge.startNode(
+                                        LibztBridge.createDefaultConfig(
+                                            context = context,
+                                            settingsManager = settingsManager
+                                        )
+                                    )
+                                }
+                                if (nodeResult.isFailure) {
+                                    status = "libzt start failed: ${nodeResult.exceptionOrNull()?.message}"
+                                    return@launch
+                                }
+                                withContext(Dispatchers.IO) { localProxy.start() }
                                     .onSuccess {
                                         running = true
-                                        status = "Proxy started"
+                                        status = "Proxy started on 127.0.0.1:1080"
                                     }
                                     .onFailure { status = "Proxy start failed: ${it.message}" }
                             } else {
@@ -155,12 +178,10 @@ private fun MainScreen(
                             }
                         } else {
                             if (proxyMode) {
-                                withContext(Dispatchers.IO) { pylonRunner.stop() }
-                                    .onSuccess {
-                                        running = false
-                                        status = "Proxy stopped"
-                                    }
-                                    .onFailure { status = "Proxy stop failed: ${it.message}" }
+                                withContext(Dispatchers.IO) { localProxy.stop() }
+                                withContext(Dispatchers.IO) { libztBridge.stopNode() }
+                                running = false
+                                status = "Proxy stopped"
                             } else {
                                 onSplitTunnelStop()
                                 running = false
