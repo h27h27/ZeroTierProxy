@@ -20,15 +20,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Validate local AAR dependency
         run: |
           test -f app/libs/libzt-release.aar || (echo "Missing app/libs/libzt-release.aar" && exit 1)
 
-      - name: Make Gradle wrapper executable
-        run: chmod +x ./gradlew
-
       - name: Build arm64-v8a release APK
-        run: ./gradlew :app:assembleRelease
+        run: gradle :app:assembleRelease
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
