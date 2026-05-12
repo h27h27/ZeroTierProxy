@@ -38,13 +38,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
+          gradle-version: '8.7'  # Match the version in gradle-wrapper.properties
           cache-read-only: false
-
-      - name: Initialize Gradle wrapper (ensure gradle-wrapper.jar exists)
-        run: ./gradlew --version
 
       - name: Build release APK
         run: ./gradlew :app:assembleRelease --stacktrace
+        env:
+          GRADLE_OPTS: -Dorg.gradle.project.dir=$GITHUB_WORKSPACE
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
