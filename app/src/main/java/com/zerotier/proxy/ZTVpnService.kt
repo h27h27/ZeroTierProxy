@@ -10,9 +10,20 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
 
 class ZTVpnService : VpnService() {
     private var tunInterface: ParcelFileDescriptor? = null
+    private var vpnScope: CoroutineScope? = null
+    private var vpnJob: Job? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -38,7 +49,7 @@ class ZTVpnService : VpnService() {
 
         val builder = Builder()
             .setSession("ZeroTier Split Tunnel")
-            .setBlocking(false)
+            .setMtu(1280)
             .addAddress("100.64.0.2", 32)
             .addDnsServer("1.1.1.1")
             .addDnsServer("8.8.8.8")
@@ -50,14 +61,51 @@ class ZTVpnService : VpnService() {
             }
         }
 
-        tunInterface = builder.establish()
+        tunInterface = builder.establish() ?: error("Failed to establish VPN interface")
+
+        // Start the TUN packet loop – non-blocking read/write on the VPN fd
+        vpnScope = CoroutineScope(Dispatchers.IO + Job())
+        vpnJob = vpnScope?.launch {
+            val inputStream = FileInputStream(tunInterface!!.fileDescriptor)
+            val outputStream = FileOutputStream(tunInterface!!.fileDescriptor)
+            val buffer = ByteBuffer.allocateDirect(32767)
+
+            while (isActive) {
+                buffer.clear()
+                val bytesRead = inputStream.channel.read(buffer)
+                if (bytesRead < 0) break
+
+                // For a full split-tunnel, this is where you'd:
+                //   1) Inspect the IP header to determine destination
+                //   2) Forward packets via the real (e.g., ZeroTier) interface
+                //   3) Write responses back to outputStream
+                //
+                // For a bare route-only split tunnel, we still need to drain
+                // reads so Android's VPN stack doesn't stall.
+                buffer.flip()
+                outputStream.channel.write(buffer)
+            }
+        }
     }
 
     private fun stopSplitTunnel() {
-        tunInterface?.close()
+        vpnJob?.cancel()
+        vpnJob = null
+        vpnScope?.cancel()
+        vpnScope = null
+
+        try {
+            tunInterface?.close()
+        } catch (_: Exception) { /* ignore */ }
         tunInterface = null
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) { /* ignore */ }
+
+        try {
+            stopSelf()
+        } catch (_: Exception) { /* ignore */ }
     }
 
     private fun buildNotification(): Notification {

@@ -2,12 +2,14 @@ package com.zerotier.proxy
 
 import android.content.Context
 import java.io.File
+import java.io.IOException
 
 class PylonRunner(
     private val context: Context,
     private val settingsManager: SettingsManager
 ) {
     private var process: Process? = null
+    private var stdoutReader: Thread? = null
 
     fun start(): Result<Unit> = runCatching {
         if (process?.isAlive == true) return@runCatching
@@ -22,6 +24,22 @@ class PylonRunner(
             .directory(context.filesDir)
             .redirectErrorStream(true)
             .start()
+
+        // Consume stdout in a daemon thread to prevent buffer blocking
+        // Without this, the process will hang once its output buffer fills up (~64KB)
+        stdoutReader = Thread {
+            try {
+                process?.inputStream?.bufferedReader()?.use { reader ->
+                    reader.lineSequence().forEach { /* discard to prevent backpressure */ }
+                }
+            } catch (_: IOException) {
+                // Process terminated
+            }
+        }.apply {
+            isDaemon = true
+            name = "pylon-stdout-reader"
+            start()
+        }
     }
 
     fun stop(): Result<Unit> = runCatching {
@@ -29,6 +47,8 @@ class PylonRunner(
             if (it.isAlive) it.destroy()
             process = null
         }
+        stdoutReader?.interrupt()
+        stdoutReader = null
     }
 
     private fun ensureBinaryInstalled(): File {

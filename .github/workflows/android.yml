@@ -10,8 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -20,18 +21,41 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
+      - name: Set up Gradle (without wrapper)
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+          cache-disabled: false
 
-      - name: Validate local AAR dependency
+      - name: Generate Gradle Wrapper
         run: |
-          test -f app/libs/libzt-release.aar || (echo "Missing app/libs/libzt-release.aar" && exit 1)
+          if [ ! -f gradlew ]; then
+            echo "gradlew not found – generating..."
+            gradle wrapper --gradle-version 8.7
+          fi
+          chmod +x gradlew
+        shell: bash
+
+      - name: Validate required dependency files
+        run: |
+          echo "Checking libzt-release.aar..."
+          test -f app/libs/libzt-release.aar || { echo "Missing: app/libs/libzt-release.aar"; exit 1; }
+
+          echo "Checking pylon_arm64 binary..."
+          test -f app/src/main/assets/bin/pylon_arm64 || { echo "Missing: app/src/main/assets/bin/pylon_arm64"; exit 1; }
+
+          echo "Checking Gradle wrapper..."
+          test -f gradlew || { echo "Missing: gradlew"; exit 1; }
+          test -f gradle/wrapper/gradle-wrapper.jar || { echo "Missing: gradle/wrapper/gradle-wrapper.jar"; exit 1; }
+
+          echo "All required files present."
 
       - name: Build arm64-v8a release APK
-        run: gradle :app:assembleRelease
+        run: ./gradlew :app:assembleRelease
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
           name: zerotierproxy-arm64-v8a-apk
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
