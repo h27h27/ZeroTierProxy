@@ -22,11 +22,6 @@ jobs:
           java-version: "17"
           cache: 'gradle'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-read-only: false
-
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
@@ -39,6 +34,14 @@ jobs:
           test -f app/src/main/assets/bin/pylon_arm64 || { echo "Missing: app/src/main/assets/bin/pylon_arm64"; exit 1; }
 
           echo "All required files present."
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Initialize Gradle wrapper (ensure gradle-wrapper.jar exists)
+        run: ./gradlew --version
 
       - name: Build release APK
         run: ./gradlew :app:assembleRelease --stacktrace
