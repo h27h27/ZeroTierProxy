@@ -11,6 +11,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Fallback to Maven Central mirror if primary fails
+        maven { url = uri("https://repo1.maven.org/maven2/") }
     }
 }
 

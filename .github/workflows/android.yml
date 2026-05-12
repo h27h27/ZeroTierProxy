@@ -20,12 +20,15 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: 'gradle'
 
-      - name: Set up Gradle
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.7"
-          cache-disabled: false
+          cache-read-only: false
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
 
       - name: Validate required dependency files
         run: |
@@ -38,7 +41,7 @@ jobs:
           echo "All required files present."
 
       - name: Build release APK
-        run: gradle :app:assembleRelease
+        run: ./gradlew :app:assembleRelease --stacktrace
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
