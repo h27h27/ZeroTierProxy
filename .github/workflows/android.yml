@@ -22,8 +22,21 @@ jobs:
           java-version: "17"
           cache: 'gradle'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
       - name: Make gradlew executable
         run: chmod +x ./gradlew
+
+      - name: Download Gradle Wrapper JAR
+        run: |
+          mkdir -p gradle/wrapper
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Downloading gradle-wrapper.jar..."
+            curl -L https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
+          fi
 
       - name: Validate required dependency files
         run: |
@@ -34,15 +47,6 @@ jobs:
           test -f app/src/main/assets/bin/pylon_arm64 || { echo "Missing: app/src/main/assets/bin/pylon_arm64"; exit 1; }
 
           echo "All required files present."
-
-      - name: Download Gradle Wrapper JAR
-        run: |
-          mkdir -p gradle/wrapper
-          # Download the gradle-wrapper.jar for Gradle 8.7
-          curl -L https://services.gradle.org/distributions/gradle-8.7-bin.zip -o gradle-8.7-bin.zip
-          unzip gradle-8.7-bin.zip
-          cp gradle-8.7/lib/plugins/gradle-wrapper-8.7.jar gradle/wrapper/gradle-wrapper.jar
-          rm -rf gradle-8.7 gradle-8.7-bin.zip
 
       - name: Build release APK
         run: ./gradlew :app:assembleRelease --stacktrace
