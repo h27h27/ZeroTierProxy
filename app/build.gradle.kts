@@ -15,13 +15,27 @@ android {
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        release {
+            storeFile = file("release-key.jks")
+            storePassword = System.getenv("KEY_STORE_PASSWORD") ?: "android"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            shrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.release
+        }
+        debug {
+            isMinifyEnabled = false
         }
     }
 
