@@ -38,22 +38,6 @@ jobs:
             curl -L https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
           fi
 
-      - name: Generate signing key
-        run: |
-          if [ ! -f app/release-key.jks ]; then
-            echo "Generating debug signing key..."
-            keytool -genkey -v \
-              -keystore app/release-key.jks \
-              -alias androiddebugkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US" \
-              -deststoretype pkcs12
-          fi
-
       - name: Validate required dependency files
         run: |
           echo "Checking libzt-release.aar..."
@@ -65,10 +49,6 @@ jobs:
           echo "All required files present."
 
       - name: Build release APK
-        env:
-          KEY_STORE_PASSWORD: android
-          KEY_ALIAS: androiddebugkey
-          KEY_PASSWORD: android
         run: ./gradlew :app:assembleRelease --stacktrace
 
       - name: Upload release APK
